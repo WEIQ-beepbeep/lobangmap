@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // Logic for Deal Validation
+    function isValidStatus(status) {
+      return status in ['pending', 'approved', 'rejected'];
+    }
+
+    function isValidDeal(data) {
+      return data.keys().hasAll(['title', 'price', 'location', 'category', 'createdAt', 'createdBy'])
+        && data.title is string && data.title.size() >= 3 && data.title.size() <= 100
+        && data.price is number && data.price >= 0
+        && data.category is string && data.category.size() <= 50
+        && data.location.lat is number && data.location.lng is number
+        && data.location.name is string && data.location.name.size() <= 200
+        && data.createdAt is timestamp && data.createdAt <= request.time
+        && data.createdBy == request.auth.uid
+        && isValidStatus(data.get('status', 'pending'))
+        && (data.get('description', '') is string && data.get('description', '').size() <= 2000)
+        && (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 1000)
+        && (data.get('sourceUrl', '') is string && data.get('sourceUrl', '').size() <= 1000)
+        && (data.get('sourceName', '') is string && data.get('sourceName', '').size() <= 100)
+        && (data.get('voters', []).size() <= 10000);
+    }
+
+    match /deals/{dealId} {
+      allow read: if existing().get('status', 'approved') == 'approved'
+        || (isSignedIn() && existing().createdBy == request.auth.uid)
+        || isAdmin();
+      allow create: if isVerified() && isValidDeal(incoming())
+        && (incoming().status == 'pending' || isAdmin());
+      allow update: if isVerified() && (
+        // Action: Vote
+        (incoming().diff(existing()).affectedKeys().hasOnly(['voters', 'score'])
+         && incoming().voters.size() <= existing().voters.size() + 1
+         && incoming().voters.hasAll(existing().voters)
+         && (request.auth.uid in incoming().voters)
+         && !(request.auth.uid in existing().voters)
+         && incoming().score == existing().score + 1)
+        ||
+        // Action: Owner Edit
+        (existing().createdBy == request.auth.uid && isValidDeal(incoming())
+         && existing().status == 'pending'
+         && incoming().status == 'pending'
+         && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'price', 'originalPrice', 'imageUrl', 'category', 'tags', 'location', 'expiresAt', 'status']))
+        ||
+        isAdmin()
+      );
+      allow delete: if isAdmin() || (isSignedIn() && existing().createdBy == request.auth.uid);
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isVerified() && isOwner(userId)
+        && incoming().keys().hasAll(['displayName', 'reputation', 'contributions'])
+        && incoming().reputation == 0
+        && incoming().contributions == 0;
+      allow update: if isVerified() && isOwner(userId)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']);
+    }
+
+    match /admins/{adminId} {
+      allow read: if isOwner(adminId);
+      allow write: if false; // Only manageable through GCP console
+    }
+  }
+}

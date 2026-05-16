@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "Deal": {
+      "title": "Deal",
+      "description": "A food deal or lobang shared by the community or scraped from sources.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The name of the deal" },
+        "description": { "type": "string", "description": "Details about the deal" },
+        "price": { "type": "number", "description": "Current discounted price" },
+        "originalPrice": { "type": "number", "description": "Original price before discount" },
+        "imageUrl": { "type": "string", "description": "URL to the deal image" },
+        "category": { "type": "string", "description": "Deal category (e.g., Student, Hawker)" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Searchable tags" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "address": { "type": "string" },
+            "name": { "type": "string" }
+          },
+          "required": ["lat", "lng", "name"]
+        },
+        "score": { "type": "number", "description": "Popularity score for ranking" },
+        "voters": { "type": "array", "items": { "type": "string" }, "description": "UIDs of users who voted" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "sourceUrl": { "type": "string", "description": "Link to the original lobang source" },
+        "createdBy": { "type": "string", "description": "UID of the contributor" }
+      },
+      "required": ["title", "price", "location", "category", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Information about a LobangLife member.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "reputation": { "type": "number" },
+        "contributions": { "type": "number" }
+      },
+      "required": ["displayName", "reputation", "contributions"]
+    }
+  },
+  "firestore": {
+    "deals/{dealId}": {
+      "schema": "Deal",
+      "description": "A collection of shared lobangs."
+    },
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles and contribution stats."
+    }
+  }
+}

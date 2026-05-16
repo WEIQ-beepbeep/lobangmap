@@ -1,0 +1,10 @@
+{
+  "name": "LobangMap",
+  "description": "Discover and share the best food deals in Singapore with real-time community updates, a live map, and a deal leaderboard.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
